@@ -7,7 +7,7 @@ namespace UniversityManagementSystem {
     using namespace System::Windows::Forms;
     using namespace System::Data;
     using namespace System::Drawing;
-    using namespace System::Data::SqlClient;
+    using namespace MySql::Data::MySqlClient;
 
     public ref class ManageProgramsForm : public System::Windows::Forms::Form
     {
@@ -46,7 +46,7 @@ namespace UniversityManagementSystem {
         System::Windows::Forms::Label^ lblCredits;
 
         System::ComponentModel::Container^ components;
-        String^ connectionString = "Data Source=localhost;Initial Catalog=university_system;User ID=root;Password=";
+        String^ connectionString = "Server=localhost;Database=university_system;Uid=aseda;Pwd=FatherAbraham2";
 
         void InitializeComponent(void)
         {
@@ -171,8 +171,8 @@ namespace UniversityManagementSystem {
         {
             try
             {
-                SqlConnection^ conn = gcnew SqlConnection(connectionString);
-                SqlDataAdapter^ da = gcnew SqlDataAdapter(
+                MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+                MySqlDataAdapter^ da = gcnew MySqlDataAdapter(
                     "SELECT p.id, p.programCode, p.programName, p.departmentCode, "
                     "p.degreeLevel, p.creditRequirement, p.isActive, d.departmentName "
                     "FROM academic_program p "
@@ -203,8 +203,8 @@ namespace UniversityManagementSystem {
         {
             try
             {
-                SqlConnection^ conn = gcnew SqlConnection(connectionString);
-                SqlDataAdapter^ da = gcnew SqlDataAdapter(
+                MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+                MySqlDataAdapter^ da = gcnew MySqlDataAdapter(
                     "SELECT departmentCode, departmentName FROM department WHERE isActive = 1",
                     conn);
 
@@ -261,8 +261,8 @@ namespace UniversityManagementSystem {
 
             try
             {
-                SqlConnection^ conn = gcnew SqlConnection(connectionString);
-                SqlCommand^ cmd = gcnew SqlCommand(
+                MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+                MySqlCommand^ cmd = gcnew MySqlCommand(
                     "INSERT INTO academic_program (programCode, programName, departmentCode, "
                     "degreeLevel, creditRequirement) VALUES (@code, @name, @dept, @level, @credits)",
                     conn);
@@ -311,8 +311,8 @@ namespace UniversityManagementSystem {
 
             try
             {
-                SqlConnection^ conn = gcnew SqlConnection(connectionString);
-                SqlCommand^ cmd = gcnew SqlCommand(
+                MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+                MySqlCommand^ cmd = gcnew MySqlCommand(
                     "UPDATE academic_program SET programName = @name, departmentCode = @dept, "
                     "degreeLevel = @level, creditRequirement = @credits "
                     "WHERE programCode = @code", conn);
@@ -358,9 +358,9 @@ namespace UniversityManagementSystem {
 
             try
             {
-                SqlConnection^ conn = gcnew SqlConnection(connectionString);
+                MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
                 // Instead of actually deleting, we'll set isActive to 0
-                SqlCommand^ cmd = gcnew SqlCommand(
+                MySqlCommand^ cmd = gcnew MySqlCommand(
                     "UPDATE academic_program SET isActive = 0 WHERE programCode = @code",
                     conn);
 

@@ -1,4 +1,3 @@
-// MainMDIForm.h
 #pragma once
 #include "studentEnrollment.h"
 #include "FacultyProfileForm.h"
@@ -9,7 +8,8 @@
 #include "ViewRosterForm.h"
 #include "TranscriptForm.h"
 #include "ManageProgramsForm.h"
-
+#include "UserManagementForm.h"
+#include "ReportGenerationForm.h"
 namespace UniversityManagementSystem {
 
     using namespace System;
@@ -279,11 +279,15 @@ namespace UniversityManagementSystem {
         }
 
         System::Void ManageUsersMenuItem_Click(System::Object^ sender, System::EventArgs^ e) {
-            // Create and show user management form
+            UserManagementForm^ manageUserForm = gcnew UserManagementForm();
+            manageUserForm->MdiParent = this;
+            manageUserForm->Show();
         }
 
         System::Void GenerateReportsMenuItem_Click(System::Object^ sender, System::EventArgs^ e) {
-            // Create and show reports form
+            ReportGenerationForm^ reportForm = gcnew ReportGenerationForm();
+            reportForm->MdiParent = this;
+            reportForm->Show();
         }
 
         System::Void LogoutMenuItem_Click(System::Object^ sender, System::EventArgs^ e) {
