@@ -60,12 +60,12 @@ namespace UniversityManagementSystem {
             this->grpReportType = gcnew GroupBox();
             this->grpReportType->Text = L"Report Configuration";
             this->grpReportType->Location = System::Drawing::Point(20, 20);
-            this->grpReportType->Size = System::Drawing::Size(1140, 150);
+            this->grpReportType->Size = System::Drawing::Size(1140, 70);
 
             this->grpFilters = gcnew GroupBox();
             this->grpFilters->Text = L"Filters";
-            this->grpFilters->Location = System::Drawing::Point(20, 180);
-            this->grpFilters->Size = System::Drawing::Size(1140, 100);
+            this->grpFilters->Location = System::Drawing::Point(20, 100);
+            this->grpFilters->Size = System::Drawing::Size(1140, 150);
 
             // Initialize Controls
             this->lblReportType = gcnew Label();
@@ -135,22 +135,23 @@ namespace UniversityManagementSystem {
             this->dtpEndDate->Format = DateTimePickerFormat::Short;
 
             // Buttons
+            // Buttons
             this->btnGenerate = gcnew Button();
             this->btnGenerate->Text = L"Generate Report";
-            this->btnGenerate->Location = System::Drawing::Point(900, 30);
+            this->btnGenerate->Location = System::Drawing::Point(900, 40);  // Relative to filter group
             this->btnGenerate->Size = System::Drawing::Size(120, 30);
             this->btnGenerate->Click += gcnew EventHandler(this, &ReportGenerationForm::btnGenerate_Click);
 
             this->btnExport = gcnew Button();
-            this->btnExport->Text = L"Export to Excel";
-            this->btnExport->Location = System::Drawing::Point(900, 70);
+            this->btnExport->Text = L"Export to CSV";
+            this->btnExport->Location = System::Drawing::Point(1030, 40);  // Relative to filter group
             this->btnExport->Size = System::Drawing::Size(120, 30);
             this->btnExport->Click += gcnew EventHandler(this, &ReportGenerationForm::btnExport_Click);
 
             this->btnPrint = gcnew Button();
             this->btnPrint->Text = L"Print Report";
-            this->btnPrint->Location = System::Drawing::Point(1030, 30);
-            this->btnPrint->Size = System::Drawing::Size(90, 30);
+            this->btnPrint->Location = System::Drawing::Point(900, 80);  // Relative to filter group
+            this->btnPrint->Size = System::Drawing::Size(120, 30);
             this->btnPrint->Click += gcnew EventHandler(this, &ReportGenerationForm::btnPrint_Click);
 
             // DataGridView for report display
@@ -170,16 +171,14 @@ namespace UniversityManagementSystem {
                 this->lblDepartment, this->cboDepartment,
                     this->lblProgram, this->cboProgram,
                     this->lblTerm, this->cboTerm,
-                    this->lblDateRange, this->dtpStartDate, this->dtpEndDate
+                    this->lblDateRange, this->dtpStartDate, this->dtpEndDate,
+                    this->btnGenerate, this->btnExport, this->btnPrint
             });
 
             // Add controls to form
             this->Controls->Add(this->grpReportType);
             this->Controls->Add(this->grpFilters);
             this->Controls->Add(this->dgvReport);
-            this->Controls->Add(this->btnGenerate);
-            this->Controls->Add(this->btnExport);
-            this->Controls->Add(this->btnPrint);
 
             // Load initial data
             LoadDepartments();
@@ -211,17 +210,21 @@ namespace UniversityManagementSystem {
         void LoadPrograms(String^ departmentCode)
         {
             try {
+                if (String::IsNullOrEmpty(departmentCode))
+                    return;
+
                 MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
                 MySqlCommand^ cmd = gcnew MySqlCommand(
                     "SELECT programCode, programName FROM academic_program "
                     "WHERE departmentCode = @dept AND isActive = 1", conn);
                 cmd->Parameters->AddWithValue("@dept", departmentCode);
 
-                conn->Open();
+                conn->Open();  // Add this line
                 MySqlDataAdapter^ da = gcnew MySqlDataAdapter(cmd);
                 DataTable^ dt = gcnew DataTable();
                 da->Fill(dt);
 
+                cboProgram->DataSource = nullptr;  // Clear existing items
                 cboProgram->DisplayMember = "programName";
                 cboProgram->ValueMember = "programCode";
                 cboProgram->DataSource = dt;
@@ -257,62 +260,136 @@ namespace UniversityManagementSystem {
             }
         }
 
-        void GenerateEnrollmentReport()
+        DataTable^ GenerateEnrollmentReport()
         {
+            MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+            DataTable^ dt = gcnew DataTable();
+
             try {
-                MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
                 String^ query = "SELECT p.programCode, p.programName, p.degreeLevel, "
-                    "COUNT(DISTINCT s.studentID) as totalStudents, "
-                    "COUNT(DISTINCT CASE WHEN e.statusID = 1 THEN e.studentID END) as activeEnrollments "
+                    "COUNT(DISTINCT s.id) as totalStudents, "
+                    "COUNT(DISTINCT CASE WHEN e.statusID = 1 AND co.termCode = @term THEN e.id END) as activeEnrollments "
                     "FROM academic_program p "
                     "LEFT JOIN student s ON p.programCode = s.programCode "
                     "LEFT JOIN enrollment e ON s.studentID = e.studentID "
                     "LEFT JOIN course_offering co ON e.courseOfferingID = co.id "
-                    "WHERE p.departmentCode = @dept ";
-
-                if (cboTerm->SelectedValue != nullptr) {
-                    query += "AND co.termCode = @term ";
-                }
-
-                query += "GROUP BY p.programCode, p.programName, p.degreeLevel";
+                    "WHERE p.departmentCode = @dept AND p.isActive = 1 "
+                    "GROUP BY p.programCode, p.programName, p.degreeLevel "
+                    "HAVING totalStudents > 0 OR activeEnrollments > 0";
 
                 MySqlCommand^ cmd = gcnew MySqlCommand(query, conn);
                 cmd->Parameters->AddWithValue("@dept", cboDepartment->SelectedValue->ToString());
+                cmd->Parameters->AddWithValue("@term", cboTerm->SelectedValue->ToString());
 
-                if (cboTerm->SelectedValue != nullptr) {
-                    cmd->Parameters->AddWithValue("@term", cboTerm->SelectedValue->ToString());
-                }
-
+                conn->Open();
                 MySqlDataAdapter^ da = gcnew MySqlDataAdapter(cmd);
-                DataTable^ dt = gcnew DataTable();
                 da->Fill(dt);
-                dgvReport->DataSource = dt;
             }
-            catch (Exception^ ex) {
-                MessageBox::Show("Error generating enrollment report: " + ex->Message);
+            finally {
+                if (conn->State == ConnectionState::Open)
+                    conn->Close();
             }
+
+            return dt;
+        }
+
+        DataTable^ GenerateGradeDistributionReport()
+        {
+            MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+            DataTable^ dt = gcnew DataTable();
+
+            try {
+                String^ query =
+                    "SELECT c.courseCode, c.courseName, g.grade, "
+                    "COUNT(*) as count, "
+                    "ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(PARTITION BY c.courseCode), 2) as percentage "
+                    "FROM course c "
+                    "JOIN course_offering co ON c.courseCode = co.courseCode "
+                    "JOIN enrollment e ON co.id = e.courseOfferingID "
+                    "JOIN grade g ON e.id = g.enrollmentID "
+                    "LEFT JOIN student s ON e.studentID = s.studentID "
+                    "WHERE c.departmentCode = @dept "
+                    "AND co.termCode = @term "
+                    "AND (@program IS NULL OR s.programCode = @program) "
+                    "GROUP BY c.courseCode, c.courseName, g.grade "
+                    "ORDER BY c.courseCode, g.grade";
+
+                MySqlCommand^ cmd = gcnew MySqlCommand(query, conn);
+                cmd->Parameters->AddWithValue("@dept", cboDepartment->SelectedValue->ToString());
+                cmd->Parameters->AddWithValue("@term", cboTerm->SelectedValue->ToString());
+
+                if (cboProgram->Enabled && cboProgram->SelectedValue != nullptr)
+                    cmd->Parameters->AddWithValue("@program", cboProgram->SelectedValue->ToString());
+                else
+                    cmd->Parameters->AddWithValue("@program", DBNull::Value);
+
+                conn->Open();
+                MySqlDataAdapter^ da = gcnew MySqlDataAdapter(cmd);
+                da->Fill(dt);
+            }
+            finally {
+                if (conn->State == ConnectionState::Open)
+                    conn->Close();
+            }
+
+            return dt;
         }
 
         void cboDepartment_SelectedIndexChanged(System::Object^ sender, System::EventArgs^ e)
         {
-            if (cboDepartment->SelectedValue != nullptr) {
+            if (cboDepartment->SelectedValue != nullptr && cboProgram->Enabled) {
                 LoadPrograms(cboDepartment->SelectedValue->ToString());
             }
         }
 
+        // Update the report type selection handler
         void cboReportType_SelectedIndexChanged(System::Object^ sender, System::EventArgs^ e)
         {
-            // Enable/disable relevant filters based on report type
+            // First disable all filters
+            cboDepartment->Enabled = false;
+            cboProgram->Enabled = false;
+            cboTerm->Enabled = false;
+            dtpStartDate->Enabled = false;
+            dtpEndDate->Enabled = false;
+
+            // Enable relevant filters based on report type
             switch (cboReportType->SelectedIndex) {
             case 0: // Enrollment Statistics
                 cboDepartment->Enabled = true;
+                cboProgram->Enabled = false; // Program is filtered by department
+                cboTerm->Enabled = true;
+                break;
+            case 1: // Grade Distribution
+                cboDepartment->Enabled = true;
                 cboProgram->Enabled = true;
                 cboTerm->Enabled = true;
-                dtpStartDate->Enabled = false;
-                dtpEndDate->Enabled = false;
                 break;
-                // Add other cases for different report types
+            case 2: // Faculty Teaching Load
+                cboDepartment->Enabled = true;
+                cboTerm->Enabled = true;
+                break;
+            case 3: // Course Enrollment
+                cboDepartment->Enabled = true;
+                cboTerm->Enabled = true;
+                break;
+            case 4: // Student Performance
+                cboDepartment->Enabled = true;
+                cboProgram->Enabled = true;
+                cboTerm->Enabled = true;
+                break;
             }
+
+            if (cboDepartment->Enabled && cboDepartment->SelectedValue != nullptr) {
+                LoadPrograms(cboDepartment->SelectedValue->ToString());
+            }
+
+            // Clear existing report data
+            if (dgvReport->DataSource != nullptr) {
+                DataTable^ dt = safe_cast<DataTable^>(dgvReport->DataSource);
+                dt->Clear();
+            }
+            dgvReport->DataSource = nullptr;
+            dgvReport->Columns->Clear();
         }
 
         void btnGenerate_Click(System::Object^ sender, System::EventArgs^ e)
@@ -322,17 +399,55 @@ namespace UniversityManagementSystem {
                 return;
             }
 
-            switch (cboReportType->SelectedIndex) {
-            case 0:
-                GenerateEnrollmentReport();
-                break;
-            case 1:
-                GenerateGradeDistributionReport();
-                break;
-            case 2:
-                GenerateFacultyLoadReport();
-                break;
-                // Add other cases for different report types
+            if (cboDepartment->Enabled && cboDepartment->SelectedValue == nullptr) {
+                MessageBox::Show("Please select a department.");
+                return;
+            }
+
+            if (cboProgram->Enabled && cboProgram->SelectedValue == nullptr) {
+                MessageBox::Show("Please select a program.");
+                return;
+            }
+
+            if (cboTerm->Enabled && cboTerm->SelectedValue == nullptr) {
+                MessageBox::Show("Please select a term.");
+                return;
+            }
+
+            // Clear existing data
+            dgvReport->DataSource = nullptr;
+            dgvReport->Columns->Clear();
+
+            try {
+                DataTable^ dt = nullptr;
+
+                switch (cboReportType->SelectedIndex) {
+                case 0:
+                    dt = GenerateEnrollmentReport();
+                    break;
+                case 1:
+                    dt = GenerateGradeDistributionReport();
+                    break;
+                case 2:
+                    dt = GenerateFacultyLoadReport();
+                    break;
+                case 3:
+                    dt = GenerateCourseEnrollmentReport();
+                    break;
+                case 4:
+                    dt = GenerateStudentPerformanceReport();
+                    break;
+                }
+
+                if (dt != nullptr && dt->Rows->Count > 0) {
+                    dgvReport->DataSource = dt;
+                }
+                else {
+                    MessageBox::Show("No data available for the selected filters.");
+                }
+            }
+            catch (Exception^ ex) {
+                MessageBox::Show("Error generating report: " + ex->Message);
             }
         }
 
@@ -457,59 +572,12 @@ namespace UniversityManagementSystem {
                 startX, e->MarginBounds.Bottom - 40);
         }
 
-        void GenerateGradeDistributionReport()
+        DataTable^ GenerateFacultyLoadReport()
         {
+            MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+            DataTable^ dt = gcnew DataTable();
+
             try {
-                MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
-                String^ query =
-                    "SELECT c.courseCode, c.courseName, g.grade, "
-                    "COUNT(*) as count, "
-                    "ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(PARTITION BY c.courseCode), 2) as percentage "
-                    "FROM course c "
-                    "JOIN course_offering co ON c.courseCode = co.courseCode "
-                    "JOIN enrollment e ON co.id = e.courseOfferingID "
-                    "JOIN grade g ON e.id = g.enrollmentID "
-                    "WHERE c.departmentCode = @dept ";
-
-                if (cboTerm->SelectedValue != nullptr) {
-                    query += "AND co.termCode = @term ";
-                }
-                if (cboProgram->SelectedValue != nullptr) {
-                    query += "AND EXISTS (SELECT 1 FROM student s WHERE s.studentID = e.studentID "
-                        "AND s.programCode = @program) ";
-                }
-
-                query += "GROUP BY c.courseCode, c.courseName, g.grade "
-                    "ORDER BY c.courseCode, g.grade";
-
-                MySqlCommand^ cmd = gcnew MySqlCommand(query, conn);
-                cmd->Parameters->AddWithValue("@dept", cboDepartment->SelectedValue->ToString());
-
-                if (cboTerm->SelectedValue != nullptr) {
-                    cmd->Parameters->AddWithValue("@term", cboTerm->SelectedValue->ToString());
-                }
-                if (cboProgram->SelectedValue != nullptr) {
-                    cmd->Parameters->AddWithValue("@program", cboProgram->SelectedValue->ToString());
-                }
-
-                MySqlDataAdapter^ da = gcnew MySqlDataAdapter(cmd);
-                DataTable^ dt = gcnew DataTable();
-                da->Fill(dt);
-                dgvReport->DataSource = dt;
-
-                // Format percentage column
-                dgvReport->Columns["percentage"]->DefaultCellStyle->Format = "N2";
-                dgvReport->Columns["percentage"]->DefaultCellStyle->Alignment = DataGridViewContentAlignment::MiddleRight;
-            }
-            catch (Exception^ ex) {
-                MessageBox::Show("Error generating grade distribution report: " + ex->Message);
-            }
-        }
-
-        void GenerateFacultyLoadReport()
-        {
-            try {
-                MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
                 String^ query =
                     "SELECT u.firstName, u.lastName, f.title, "
                     "COUNT(DISTINCT co.id) as courseCount, "
@@ -532,14 +600,102 @@ namespace UniversityManagementSystem {
                     cmd->Parameters->AddWithValue("@term", cboTerm->SelectedValue->ToString());
                 }
 
+                conn->Open();
                 MySqlDataAdapter^ da = gcnew MySqlDataAdapter(cmd);
-                DataTable^ dt = gcnew DataTable();
                 da->Fill(dt);
-                dgvReport->DataSource = dt;
             }
-            catch (Exception^ ex) {
-                MessageBox::Show("Error generating faculty load report: " + ex->Message);
+            finally {
+                if (conn->State == ConnectionState::Open)
+                    conn->Close();
             }
+
+            return dt;
+        }
+
+        DataTable^ GenerateCourseEnrollmentReport()
+        {
+            MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+            DataTable^ dt = gcnew DataTable();
+
+            try {
+                String^ query = "SELECT co.courseCode, c.courseName, "
+                    "co.section, co.enrolledCount, co.capacity, "
+                    "ROUND((co.enrolledCount * 100.0 / co.capacity), 2) as fillRate, "
+                    "co.status "
+                    "FROM course_offering co "
+                    "JOIN course c ON co.courseCode = c.courseCode "
+                    "WHERE c.departmentCode = @dept ";
+
+                if (cboTerm->SelectedValue != nullptr) {
+                    query += "AND co.termCode = @term ";
+                }
+
+                query += "ORDER BY co.courseCode, co.section";
+
+                MySqlCommand^ cmd = gcnew MySqlCommand(query, conn);
+                cmd->Parameters->AddWithValue("@dept", cboDepartment->SelectedValue->ToString());
+
+                if (cboTerm->SelectedValue != nullptr) {
+                    cmd->Parameters->AddWithValue("@term", cboTerm->SelectedValue->ToString());
+                }
+
+                conn->Open();
+                MySqlDataAdapter^ da = gcnew MySqlDataAdapter(cmd);
+                da->Fill(dt);
+
+                // Format percentage column
+                if (dt->Columns->Contains("fillRate")) {
+                    dt->Columns["fillRate"]->Caption = "Fill Rate (%)";
+                }
+            }
+            finally {
+                if (conn->State == ConnectionState::Open)
+                    conn->Close();
+            }
+
+            return dt;
+        }
+
+        DataTable^ GenerateStudentPerformanceReport()
+        {
+            MySqlConnection^ conn = gcnew MySqlConnection(connectionString);
+            DataTable^ dt = gcnew DataTable();
+
+            try {
+                String^ query = "SELECT s.studentID, CONCAT(u.firstName, ' ', u.lastName) as studentName, "
+                    "c.courseCode, c.courseName, g.grade, gs.gradePoint "
+                    "FROM student s "
+                    "JOIN user u ON s.userID = u.userID "
+                    "JOIN enrollment e ON s.studentID = e.studentID "
+                    "JOIN course_offering co ON e.courseOfferingID = co.id "
+                    "JOIN course c ON co.courseCode = c.courseCode "
+                    "LEFT JOIN grade g ON e.id = g.enrollmentID "
+                    "LEFT JOIN grade_scale gs ON g.grade = gs.grade "
+                    "WHERE s.programCode = @program ";
+
+                if (cboTerm->SelectedValue != nullptr) {
+                    query += "AND co.termCode = @term ";
+                }
+
+                query += "ORDER BY studentName, c.courseCode";
+
+                MySqlCommand^ cmd = gcnew MySqlCommand(query, conn);
+                cmd->Parameters->AddWithValue("@program", cboProgram->SelectedValue->ToString());
+
+                if (cboTerm->SelectedValue != nullptr) {
+                    cmd->Parameters->AddWithValue("@term", cboTerm->SelectedValue->ToString());
+                }
+
+                conn->Open();
+                MySqlDataAdapter^ da = gcnew MySqlDataAdapter(cmd);
+                da->Fill(dt);
+            }
+            finally {
+                if (conn->State == ConnectionState::Open)
+                    conn->Close();
+            }
+
+            return dt;
         }
     };
 }

@@ -10,6 +10,7 @@
 #include "ManageProgramsForm.h"
 #include "UserManagementForm.h"
 #include "ReportGenerationForm.h"
+#include "StudentProfileForm.h"
 namespace UniversityManagementSystem {
 
     using namespace System;
@@ -54,6 +55,7 @@ namespace UniversityManagementSystem {
         System::Windows::Forms::ToolStripMenuItem^ helpMenu;
 
         // Student Menu Items
+        System::Windows::Forms::ToolStripMenuItem^ studentProfileMenuItem;
         System::Windows::Forms::ToolStripMenuItem^ enrollmentMenuItem;
         System::Windows::Forms::ToolStripMenuItem^ viewGradesMenuItem;
         System::Windows::Forms::ToolStripMenuItem^ viewScheduleMenuItem;
@@ -96,6 +98,8 @@ namespace UniversityManagementSystem {
 
             // Student Menu
             this->studentMenu = gcnew ToolStripMenuItem(L"Student");
+            this->studentProfileMenuItem = gcnew ToolStripMenuItem(L"Student Profile", nullptr,
+                gcnew EventHandler(this, &MainMDIForm::StudentProfileMenuItem_Click));
             this->enrollmentMenuItem = gcnew ToolStripMenuItem(L"Course Enrollment", nullptr,
                 gcnew EventHandler(this, &MainMDIForm::EnrollmentMenuItem_Click));
             this->viewGradesMenuItem = gcnew ToolStripMenuItem(L"View Grades", nullptr,
@@ -105,7 +109,8 @@ namespace UniversityManagementSystem {
             this->viewTranscriptMenuItem = gcnew ToolStripMenuItem(L"View Transcript", nullptr,
                 gcnew EventHandler(this, &MainMDIForm::ViewTranscriptMenuItem_Click));
             this->studentMenu->DropDownItems->AddRange(gcnew array<ToolStripItem^> {
-                this->enrollmentMenuItem,
+                this->studentProfileMenuItem,
+                    this->enrollmentMenuItem,
                     this->viewGradesMenuItem,
                     this->viewScheduleMenuItem,
                     this->viewTranscriptMenuItem
@@ -181,6 +186,18 @@ namespace UniversityManagementSystem {
         }
 
         // Menu Item Click Events
+        System::Void StudentProfileMenuItem_Click(System::Object^ sender, System::EventArgs^ e) {
+            try {
+                StudentProfileForm^ studentProfileForm = gcnew StudentProfileForm(this->userID);
+                studentProfileForm->MdiParent = this;
+                studentProfileForm->Show();
+            }
+            catch (Exception^ ex) {
+                MessageBox::Show("Error opening student profile: " + ex->Message,
+                    "Error", MessageBoxButtons::OK, MessageBoxIcon::Error);
+            }
+        }
+
         System::Void EnrollmentMenuItem_Click(System::Object^ sender, System::EventArgs^ e) {
             try {
                 StudentEnrollmentForm^ enrollmentForm = gcnew StudentEnrollmentForm(userID);
